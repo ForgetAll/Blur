@@ -67,12 +67,12 @@ public class ImageProcess {
 
     public static Bitmap blur(Bitmap bmp, int radius) {
         long current = System.currentTimeMillis();
+        Log.e(TAG, "width=" + bmp.getWidth() + " height=" + bmp.getHeight());
         Bitmap temp = ratio(bmp, bmp.getWidth() * BITMAP_SCALE, bmp.getHeight() * BITMAP_SCALE);
 //        Bitmap temp = bmp.copy(Bitmap.Config.ARGB_8888, true);
         Log.e(TAG, "压缩图片花费时间：" + (System.currentTimeMillis() - current) + " ms");
         // 回收原图像
 //        bmp.recycle();
-
         int width = temp.getWidth();
         int height = temp.getHeight();
 
@@ -338,5 +338,5 @@ public class ImageProcess {
         return (bitmap);
     }
 
-    private static native void blur(int[] img, int width, int height, int radius);
+    protected static native void blur(int[] img, int width, int height, int radius);
 }

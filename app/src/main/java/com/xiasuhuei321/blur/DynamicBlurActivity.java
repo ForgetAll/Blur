@@ -85,15 +85,17 @@ public class DynamicBlurActivity extends AppCompatActivity {
                 break;
 
             case MotionEvent.ACTION_UP:
-                scrollFlag = false;
-                if (Math.abs(sumY) > height * 0.5) {
-                    if (isShow) hide();
-                    else show();
-                } else {
-                    if (isShow) show();
-                    else hide();
+                if(scrollFlag) {
+                    if (Math.abs(sumY) > height * 0.5) {
+                        if (isShow) hide();
+                        else show();
+                    } else {
+                        if (isShow) show();
+                        else hide();
+                    }
+                    sumY = 0;
                 }
-                sumY = 0;
+                scrollFlag = false;
                 break;
         }
 
