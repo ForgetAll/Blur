@@ -24,7 +24,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Intent intent = new Intent(MainActivity.this, DynamicBlurActivity.class);
-//                intent.putExtra(BlurImageActivity.TYPE,BlurImageActivity.TYPE);
                 startActivity(intent);
             }
         });
@@ -41,10 +40,10 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.bt_jni).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-//                Intent intent = new Intent(MainActivity.this, BlurImageActivity.class);
-//                intent.putExtra(BlurImageActivity.TYPE, BlurImageActivity.TYPE_JNI);
-//                startActivity(intent);
-                view.setTranslationY(400f);
+                Intent intent = new Intent(MainActivity.this, BlurImageActivity.class);
+                intent.putExtra(BlurImageActivity.TYPE, BlurImageActivity.TYPE_JNI);
+                startActivity(intent);
+//                view.setTranslationY(400f);
             }
         });
     }

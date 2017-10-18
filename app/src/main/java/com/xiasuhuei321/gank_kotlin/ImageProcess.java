@@ -11,6 +11,8 @@ import android.renderscript.RenderScript;
 import android.renderscript.ScriptIntrinsicBlur;
 import android.util.Log;
 
+import static android.R.attr.bitmap;
+
 /**
  * Created by xiasuhuei321 on 2017/10/17.
  * author:luo
@@ -43,7 +45,7 @@ public class ImageProcess {
         // 创建一张渲染后的输出图片
         Bitmap outputBitmap = Bitmap.createBitmap(inputBitmap);
 
-        // 创建 RenderScript 内核对象
+        // 初始化 RenderScript 上下文
         RenderScript rs = RenderScript.create(context);
         // 创建一个模糊效果的 RenderScript 的工具对象
         ScriptIntrinsicBlur blur = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs));
@@ -66,15 +68,13 @@ public class ImageProcess {
     public static Bitmap blur(Bitmap bmp, int radius) {
         long current = System.currentTimeMillis();
         Bitmap temp = ratio(bmp, bmp.getWidth() * BITMAP_SCALE, bmp.getHeight() * BITMAP_SCALE);
+//        Bitmap temp = bmp.copy(Bitmap.Config.ARGB_8888, true);
         Log.e(TAG, "压缩图片花费时间：" + (System.currentTimeMillis() - current) + " ms");
         // 回收原图像
-        bmp.recycle();
+//        bmp.recycle();
 
         int width = temp.getWidth();
         int height = temp.getHeight();
-
-//        int width = (int) (temp.getWidth() * BITMAP_SCALE);
-//        int height = (int) (temp.getHeight() * BITMAP_SCALE);
 
         // 申请用于存放像素的内存
         int[] pixels = new int[width * height];
@@ -89,33 +89,253 @@ public class ImageProcess {
     }
 
     public static Bitmap ratio(Bitmap bmp, float pixelW, float pixelH) {
-//        BitmapFactory.Options newOpts = new BitmapFactory.Options();
-//        // 开始读入图片，此时把options.inJustDecodeBounds 设回true，即只读边不读内容
-//        newOpts.inJustDecodeBounds = true;
-//        newOpts.inPreferredConfig = Bitmap.Config.ARGB_8888;
-//        // Get bitmap info, but notice that bitmap is null now
-//        Bitmap bitmap = bmp;
-//
-//        newOpts.inJustDecodeBounds = false;
-//        int w = newOpts.outWidth;
-//        int h = newOpts.outHeight;
-//        // 想要缩放的目标尺寸
-//        float hh = pixelH;// 设置高度为240f时，可以明显看到图片缩小了
-//        float ww = pixelW;// 设置宽度为120f，可以明显看到图片缩小了
-//        // 缩放比。由于是固定比例缩放，只用高或者宽其中一个数据进行计算即可
-//        int be = 1;//be=1表示不缩放
-//        if (w > h && w > ww) {//如果宽度大的话根据宽度固定大小缩放
-//            be = (int) (newOpts.outWidth / ww);
-//        } else if (w < h && h > hh) {//如果高度高的话根据宽度固定大小缩放
-//            be = (int) (newOpts.outHeight / hh);
-//        }
-//        if (be <= 0) be = 1;
-//        newOpts.inSampleSize = be;//设置缩放比例
-        // 开始压缩图片，注意此时已经把options.inJustDecodeBounds 设回false了
-//        bitmap = BitmapFactory.decodeFile(imgPath, newOpts);
         return ThumbnailUtils.extractThumbnail(bmp, (int) pixelW, (int) pixelH);
-        // 压缩好比例大小后再进行质量压缩
-//        return compress(bitmap, maxSize); // 这里再进行质量压缩的意义不大，反而耗资源，删除
+    }
+
+    /**
+     * StackBlur By Java Bitmap
+     *
+     * @param bmp    bmp Image
+     * @param radius Blur radius
+     * @return Image Bitmap
+     */
+    public static Bitmap blurInJava(Bitmap bmp, int radius) {
+        // Stack Blur v1.0 from
+        // http://www.quasimondo.com/StackBlurForCanvas/StackBlurDemo.html
+        //
+        // Java Author: Mario Klingemann <mario at quasimondo.com>
+        // http://incubator.quasimondo.com
+        // created Feburary 29, 2004
+        // Android port : Yahel Bouaziz <yahel at kayenko.com>
+        // http://www.kayenko.com
+        // ported april 5th, 2012
+
+        // This is a compromise between Gaussian Blur and Box blur
+        // It creates much better looking blurs than Box Blur, but is
+        // 7x faster than my Gaussian Blur implementation.
+        //
+        // I called it Stack Blur because this describes best how this
+        // filter works internally: it creates a kind of moving stack
+        // of colors whilst scanning through the image. Thereby it
+        // just has to add one new block of color to the right side
+        // of the stack and remove the leftmost color. The remaining
+        // colors on the topmost layer of the stack are either added on
+        // or reduced by one, depending on if they are on the right or
+        // on the left side of the stack.
+        //
+        // If you are using this algorithm in your code please add
+        // the following line:
+        //
+        // Stack Blur Algorithm by Mario Klingemann <mario@quasimondo.com>
+        if (radius < 1) {
+            return (null);
+        }
+
+        Bitmap bitmap = ratio(bmp, bmp.getWidth() * BITMAP_SCALE, bmp.getHeight() * BITMAP_SCALE);
+//        Bitmap bitmap = bmp.copy(Bitmap.Config.ARGB_8888, true);
+        // Return this none blur
+        if (radius == 1) {
+            return bitmap;
+        }
+        bmp.recycle();
+
+        int w = bitmap.getWidth();
+        int h = bitmap.getHeight();
+
+        int[] pix = new int[w * h];
+        // get array
+        bitmap.getPixels(pix, 0, w, 0, 0, w, h);
+
+        // run Blur
+        int wm = w - 1;
+        int hm = h - 1;
+        int wh = w * h;
+        int div = radius + radius + 1;
+
+        short r[] = new short[wh];
+        short g[] = new short[wh];
+        short b[] = new short[wh];
+        int rSum, gSum, bSum, x, y, i, p, yp, yi, yw;
+        int vMin[] = new int[Math.max(w, h)];
+
+        int divSum = (div + 1) >> 1;
+        divSum *= divSum;
+
+        short dv[] = new short[256 * divSum];
+        for (i = 0; i < 256 * divSum; i++) {
+            dv[i] = (short) (i / divSum);
+        }
+
+        yw = yi = 0;
+
+        int[][] stack = new int[div][3];
+        int stackPointer;
+        int stackStart;
+        int[] sir;
+        int rbs;
+        int r1 = radius + 1;
+        int routSum, goutSum, boutSum;
+        int rinSum, ginSum, binSum;
+
+        for (y = 0; y < h; y++) {
+            rinSum = ginSum = binSum = routSum = goutSum = boutSum = rSum = gSum = bSum = 0;
+            for (i = -radius; i <= radius; i++) {
+                p = pix[yi + Math.min(wm, Math.max(i, 0))];
+                sir = stack[i + radius];
+                sir[0] = (p & 0xff0000) >> 16;
+                sir[1] = (p & 0x00ff00) >> 8;
+                sir[2] = (p & 0x0000ff);
+
+                rbs = r1 - Math.abs(i);
+                rSum += sir[0] * rbs;
+                gSum += sir[1] * rbs;
+                bSum += sir[2] * rbs;
+                if (i > 0) {
+                    rinSum += sir[0];
+                    ginSum += sir[1];
+                    binSum += sir[2];
+                } else {
+                    routSum += sir[0];
+                    goutSum += sir[1];
+                    boutSum += sir[2];
+                }
+            }
+            stackPointer = radius;
+
+            for (x = 0; x < w; x++) {
+
+                r[yi] = dv[rSum];
+                g[yi] = dv[gSum];
+                b[yi] = dv[bSum];
+
+                rSum -= routSum;
+                gSum -= goutSum;
+                bSum -= boutSum;
+
+                stackStart = stackPointer - radius + div;
+                sir = stack[stackStart % div];
+
+                routSum -= sir[0];
+                goutSum -= sir[1];
+                boutSum -= sir[2];
+
+                if (y == 0) {
+                    vMin[x] = Math.min(x + radius + 1, wm);
+                }
+                p = pix[yw + vMin[x]];
+
+                sir[0] = (p & 0xff0000) >> 16;
+                sir[1] = (p & 0x00ff00) >> 8;
+                sir[2] = (p & 0x0000ff);
+
+                rinSum += sir[0];
+                ginSum += sir[1];
+                binSum += sir[2];
+
+                rSum += rinSum;
+                gSum += ginSum;
+                bSum += binSum;
+
+                stackPointer = (stackPointer + 1) % div;
+                sir = stack[(stackPointer) % div];
+
+                routSum += sir[0];
+                goutSum += sir[1];
+                boutSum += sir[2];
+
+                rinSum -= sir[0];
+                ginSum -= sir[1];
+                binSum -= sir[2];
+
+                yi++;
+            }
+            yw += w;
+        }
+        for (x = 0; x < w; x++) {
+            rinSum = ginSum = binSum = routSum = goutSum = boutSum = rSum = gSum = bSum = 0;
+            yp = -radius * w;
+            for (i = -radius; i <= radius; i++) {
+                yi = Math.max(0, yp) + x;
+
+                sir = stack[i + radius];
+
+                sir[0] = r[yi];
+                sir[1] = g[yi];
+                sir[2] = b[yi];
+
+                rbs = r1 - Math.abs(i);
+
+                rSum += r[yi] * rbs;
+                gSum += g[yi] * rbs;
+                bSum += b[yi] * rbs;
+
+                if (i > 0) {
+                    rinSum += sir[0];
+                    ginSum += sir[1];
+                    binSum += sir[2];
+                } else {
+                    routSum += sir[0];
+                    goutSum += sir[1];
+                    boutSum += sir[2];
+                }
+
+                if (i < hm) {
+                    yp += w;
+                }
+            }
+            yi = x;
+            stackPointer = radius;
+            for (y = 0; y < h; y++) {
+                // Preserve alpha channel: ( 0xff000000 & pix[yi] )
+                pix[yi] = (0xff000000 & pix[yi]) | (dv[rSum] << 16) | (dv[gSum] << 8) | dv[bSum];
+
+                rSum -= routSum;
+                gSum -= goutSum;
+                bSum -= boutSum;
+
+                stackStart = stackPointer - radius + div;
+                sir = stack[stackStart % div];
+
+                routSum -= sir[0];
+                goutSum -= sir[1];
+                boutSum -= sir[2];
+
+                if (x == 0) {
+                    vMin[y] = Math.min(y + r1, hm) * w;
+                }
+                p = x + vMin[y];
+
+                sir[0] = r[p];
+                sir[1] = g[p];
+                sir[2] = b[p];
+
+                rinSum += sir[0];
+                ginSum += sir[1];
+                binSum += sir[2];
+
+                rSum += rinSum;
+                gSum += ginSum;
+                bSum += binSum;
+
+                stackPointer = (stackPointer + 1) % div;
+                sir = stack[stackPointer];
+
+                routSum += sir[0];
+                goutSum += sir[1];
+                boutSum += sir[2];
+
+                rinSum -= sir[0];
+                ginSum -= sir[1];
+                binSum -= sir[2];
+
+                yi += w;
+            }
+        }
+
+        // set Bitmap
+        bitmap.setPixels(pix, 0, w, 0, 0, w, h);
+
+        return (bitmap);
     }
 
     private static native void blur(int[] img, int width, int height, int radius);

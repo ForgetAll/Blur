@@ -83,7 +83,26 @@ public class BlurImageActivity extends AppCompatActivity {
                 break;
 
             case TYPE_JAVA:
-
+                showProgressDialog();
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        start();
+                        Bitmap blur = ImageProcess.blurInJava(bmp, 25);
+                        final long lastTime = end();
+                        Log.e(TAG, "处理花费时间：" + lastTime + " ms");
+                        h.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(BlurImageActivity.this, "处理花费时间：" + lastTime + " ms", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                        Message msg = Message.obtain();
+                        msg.obj = blur;
+                        msg.what = TYPE_JNI;
+                        h.sendMessage(msg);
+                    }
+                }).start();
                 break;
 
             case TYPE_RENDER:
